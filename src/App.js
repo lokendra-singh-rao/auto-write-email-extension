@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import "./App.css";
 import axios from "axios";
-import "dotenv/config"
+import Loader from "./components/loader/Loader.js";
 
 const App = () => {
   const [replyLength, setReplyLength] = useState("short");
@@ -11,66 +11,24 @@ const App = () => {
   const [darkMode, setDarkMode] = useState(true);
   const [copied, setCopied] = useState(true);
   const [givenEmailContent, setGivenEmailContent] = useState("");
-  const [lengthTypes, setLengthTypes] = useState({
-    short: "short (50 words)",
-    medium: "medium (100 words)",
-    long: "long (150 words)",
-  });
+  const [error, setError] = useState(false);
 
-  const generateReply = async () => {
+  const handleGenerateReply = async () => {
+    setLoading(true);
     try {
-      lengthTypes.map(async (lengthType) => {
-        const url = "https://cloud.olakrutrim.com/v1/chat/completions";
-        const data = {
-          model: "Krutrim-spectre-v2",
-          messages: [
-            {
-              role: "system",
-              content: `Generate a ${lengthType} length reply for the email`,
-            },
-            {
-              role: "user",
-              content: givenEmailContent,
-            },
-          ],
-          frequency_penalty: 0,
-          logprobs: true,
-          top_logprobs: 2,
-          max_tokens: 256,
-          n: 1,
-          presence_penalty: 0,
-          response_format: { type: "text" },
-          stream: false,
-          temperature: 0,
-          top_p: 1,
-        };
-
-        const response = await axios.post(url, data, {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${process.env.KRUTRIM_SECRET_KEY}`,
-          },
-        });
-
-        console.log(response.data);
+      const response = await axios.post("http://localhost:5000/krutrim/email/generate-reply", {
+        emailContent: givenEmailContent,
       });
+      if (response.status === 200) {
+        setGeneratedReply(response.data.data);
+      } else {
+        setError(true);
+      }
     } catch (error) {
       console.log("Error fetching email reply...", error);
-    }
-  };
-
-  const handleGenerateReply = () => {
-    generateReply();
-    setLoading(true);
-    setTimeout(() => {
-      const replies = {
-        short: "This is a short reply.",
-        medium: "This is a medium-length reply, providing a bit more detail.",
-        long: "This is a long reply, which contains a comprehensive explanation and is meant to provide thorough understanding.",
-      };
-      setGeneratedReply(replies);
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   };
 
   const handleTabClick = (length) => {
@@ -82,7 +40,7 @@ const App = () => {
   };
 
   const handleCopyResponse = () => {
-    navigator.clipboard.writeText(generatedReply);
+    navigator.clipboard.writeText(generatedReply[replyLength]);
     setCopied(true);
   };
 
@@ -92,20 +50,18 @@ const App = () => {
     }, 3000);
   }, [copied]);
 
-  console.log("generatedReply", generatedReply);
-  console.log("replyLength", replyLength);
   return (
     <div className={`App ${darkMode ? "dark" : "light"}`}>
       <div className="toggle-button" onClick={handleToggleDarkMode}>
-        {darkMode ? "🌙" : "🌞"}
+        {darkMode ? "🌞" : "🌙"}
       </div>
-      <h3>Welcome to Your Chrome Extension</h3>
-      <textarea className="email-input" placeholder="Enter your email body here..." onChange={(e) => setGivenEmailContent(e.target.value)} value={givenEmailContent}></textarea>
-      <button className="generate-button" onClick={handleGenerateReply}>
-        Generate Reply
+      <h3>AI EMAIL REPLIES 🚀</h3>
+      <textarea className="email-input" placeholder="Enter email to which reply has to be sent..." onChange={(e) => setGivenEmailContent(e.target.value)} value={givenEmailContent}></textarea>
+      <button disabled={loading ? true : false} className="generate-button" onClick={handleGenerateReply}>
+        {loading ? <Loader /> : "Generate reply"}
       </button>
-      {loading && <div className="loading">Loading...</div>}
-      {generatedReply && (
+
+      {!loading && Object.keys(generatedReply).length > 0 && (
         <div className="reply-options">
           <div className="tabs">
             {["short", "medium", "long"].map((length) => (
@@ -122,6 +78,8 @@ const App = () => {
           </div>
         </div>
       )}
+
+      {!loading && error && <div>Something went wrong! Please try again later</div>}
     </div>
   );
 };
